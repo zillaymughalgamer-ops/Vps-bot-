@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
-#  Svm Vps V9 — Installer
-#  Sets up LXD/LXC, Python deps, systemd service for bot.py
+#  Svm Vps V9 — Universal Installer (No LXD / Containerless)
+#  Sets up Python deps and systemd service directly on host VPS
 # ============================================================
 
 set -e
@@ -44,8 +44,8 @@ banner() {
     clear
     ascii_banner
     echo -e "${WHT}  ─────────────────────────────────────────────────────────────${NC}"
-    echo -e "  ${CYN}Fully Automated LXC/LXD VPS Discord Bot Installer${NC}"
-    echo -e "  ${CYN}Ubuntu & Debian supported | Fast setup${NC}"
+    echo -e "  ${CYN}Universal VPS Discord Bot Installer (Direct Host Deployment)${NC}"
+    echo -e "  ${CYN}Works on ALL Ubuntu & Debian VPS | Fast Setup${NC}"
     echo -e "  ${MAG}Made by SECTOR_PLAYS${NC}  |  ${BLU}github.com/AnkitKing7/Svm-v9bot${NC}"
     echo -e "${WHT}  ─────────────────────────────────────────────────────────────${NC}\n"
 }
@@ -61,63 +61,16 @@ need_root() {
     fi
 }
 
-# ---------- OS selection ----------
-choose_os() {
-    echo -e "${WHT}Select your OS:${NC}"
-    echo -e "  ${YEL}1)${NC} Ubuntu"
-    echo -e "  ${YEL}2)${NC} Debian"
-    read -rp "$(echo -e "${CYN}Enter choice [1-2]: ${NC}")" OS_CHOICE
-}
-
-install_lxd_ubuntu() {
-    step "Updating system (Ubuntu)..."
-    apt update && apt upgrade -y
-
-    step "Installing LXC utilities..."
-    apt install lxc lxc-utils -y
-
-    step "Installing snapd..."
-    apt install snapd -y
-    systemctl enable --now snapd.socket
-
-    step "Installing LXD via snap..."
-    snap install lxd
-
-    step "Adding $SUDO_USER to lxd group..."
-    usermod -aG lxd "${SUDO_USER:-$USER}" || true
-
-    step "Initializing LXD (auto/minimal config)..."
-    lxd init --auto
-
-    step "Installing bridge/uidmap utilities..."
-    apt update
-    apt install lxc lxc-utils bridge-utils uidmap -y
-}
-
-install_lxd_debian() {
-    step "Updating system (Debian)..."
-    apt update && apt upgrade -y
-
-    step "Installing snapd..."
-    apt install snapd -y
-    systemctl enable --now snapd.socket
-
-    step "Linking snap directory..."
-    ln -sf /var/lib/snapd/snap /snap
-
-    step "Installing LXD via snap..."
-    snap install lxd
-
-    step "Adding $SUDO_USER to lxd group..."
-    usermod -aG lxd "${SUDO_USER:-$USER}" || true
-
-    step "Initializing LXD (auto/minimal config)..."
-    lxd init --auto
+update_system() {
+    step "Updating base system packages..."
+    apt update -y && apt upgrade -y
+    step "Installing essentials (curl, git, wget, build tools)..."
+    apt install -y curl wget git build-essential software-properties-common
 }
 
 install_python_stack() {
-    step "Installing Python 3 / pip..."
-    apt install python3-pip -y
+    step "Installing Python 3, pip, and venv..."
+    apt install -y python3 python3-pip python3-venv
 
     step "Allowing pip to break system packages (PEP 668 override)..."
     mkdir -p ~/.config/pip
@@ -183,7 +136,7 @@ EOF
 
 final_message() {
     echo -e "\n${WHT}────────────────────────────────────────${NC}"
-    echo -e "${GRN}  Installation complete!${NC}"
+    echo -e "${GRN}  Installation complete! Bot deployed successfully.${NC}"
     echo -e "${WHT}────────────────────────────────────────${NC}"
     echo -e "  ${CYN}Service name:${NC} bot.service"
     echo -e "  ${CYN}Status:${NC}       systemctl status bot"
@@ -195,14 +148,7 @@ final_message() {
 main() {
     banner
     need_root
-    choose_os
-
-    case "$OS_CHOICE" in
-        1) install_lxd_ubuntu ;;
-        2) install_lxd_debian ;;
-        *) err "Invalid choice. Exiting."; exit 1 ;;
-    esac
-
+    update_system
     install_python_stack
     deploy_bot
     configure_env
