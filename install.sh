@@ -1,10 +1,13 @@
 #!/bin/bash
 # ============================================================
-#  Svm Vps V9 — Universal Installer (No LXD / Containerless)
+#  Svm Vps V9 — Universal Installer (100% Robust Host Setup)
 #  Sets up Python deps and systemd service directly on host VPS
 # ============================================================
 
 set -e
+
+# Non-interactive mode for APT (Prevents prompt freezes during updates)
+export DEBIAN_FRONTEND=noninteractive
 
 # ---------- Colors ----------
 RED='\033[0;31m'; GRN='\033[0;32m'; YEL='\033[1;33m'; BLU='\033[0;34m'
@@ -33,7 +36,6 @@ ascii_banner() {
     echo ""
     rainbow_line ' ___  ___ _____   _   __  _____   ___ ___ ___ _____ ___ ___  _  _ '
     rainbow_line '| _ )/ _ \_   _| | |  \ \/ / __| | __|   \_ _|_   _|_ _/ _ \| \| |'
-    rainbow_line '| _ \ (_) || |   | |__ >  < (__  | _|| |) | |  | |  | | (_) | .` |'
     rainbow_line '|___/\___/ |_|   |____/_/\_\___| |___|___/___| |_| |___\___/|_|\_|'
     echo ""
     rainbow_line '                    ~ Made by SECTOR_PLAYS ~'
@@ -46,7 +48,7 @@ banner() {
     echo -e "${WHT}  ─────────────────────────────────────────────────────────────${NC}"
     echo -e "  ${CYN}Universal VPS Discord Bot Installer (Direct Host Deployment)${NC}"
     echo -e "  ${CYN}Works on ALL Ubuntu & Debian VPS | Fast Setup${NC}"
-    echo -e "  ${MAG}Made by SECTOR_PLAYS${NC}  |  ${BLU}github.com/AnkitKing7/Svm-v9bot${NC}"
+    echo -e "  ${MAG}Made by SECTOR_PLAYS${NC}  |  ${BLU}github.com/zillaymughalgamer-ops/Vps-bot-${NC}"
     echo -e "${WHT}  ─────────────────────────────────────────────────────────────${NC}\n"
 }
 
@@ -62,21 +64,23 @@ need_root() {
 }
 
 update_system() {
-    step "Updating base system packages..."
-    apt update -y && apt upgrade -y
+    step "Updating package list..."
+    apt update -y
     step "Installing essentials (curl, git, wget, build tools)..."
-    apt install -y curl wget git build-essential software-properties-common
+    apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+        curl wget git build-essential software-properties-common ca-certificates
 }
 
 install_python_stack() {
     step "Installing Python 3, pip, and venv..."
     apt install -y python3 python3-pip python3-venv
 
-    step "Allowing pip to break system packages (PEP 668 override)..."
+    step "Configuring pip overrides (PEP 668 compatibility)..."
     mkdir -p ~/.config/pip
     echo -e "[global]\nbreak-system-packages = true" > ~/.config/pip/pip.conf
 
-    step "Installing Python dependencies (discord.py, requests)..."
+    step "Installing/Updating Python dependencies..."
+    pip3 install --upgrade pip
     pip3 install -U discord.py requests
 }
 
@@ -103,7 +107,10 @@ configure_env() {
 }
 
 create_service() {
-    step "Creating systemd service..."
+    # Dynamically find exact python3 binary path
+    PYTHON_BIN=$(which python3 || echo "/usr/bin/python3")
+
+    step "Creating systemd service using Python path (${PYTHON_BIN})..."
     cat > /etc/systemd/system/bot.service <<EOF
 [Unit]
 Description=IPMI SUPERMICRO BOT
@@ -112,7 +119,7 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=/root
-ExecStart=/usr/bin/python3 /root/bot.py
+ExecStart=${PYTHON_BIN} /root/bot.py
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
@@ -139,10 +146,14 @@ final_message() {
     echo -e "${GRN}  Installation complete! Bot deployed successfully.${NC}"
     echo -e "${WHT}────────────────────────────────────────${NC}"
     echo -e "  ${CYN}Service name:${NC} bot.service"
-    echo -e "  ${CYN}Status:${NC}       systemctl status bot"
-    echo -e "  ${CYN}Logs:${NC}         journalctl -u bot -f"
-    echo -e "  ${CYN}Restart:${NC}      systemctl restart bot"
+    echo -e "  ${CYN}Check Status:${NC} systemctl status bot"
+    echo -e "  ${CYN}View Logs:${NC}    journalctl -u bot -f"
+    echo -e "  ${CYN}Restart Bot:${NC}  systemctl restart bot"
     echo -e "${WHT}────────────────────────────────────────${NC}\n"
+
+    # Print live status right after setup
+    step "Current Service Status:"
+    systemctl status bot --no-pager || true
 }
 
 main() {
